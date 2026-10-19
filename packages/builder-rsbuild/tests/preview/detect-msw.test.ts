@@ -15,7 +15,6 @@ async function buildOptions(fixture: 'msw-active' | 'msw-absent') {
   const presets = await loadAllPresets({
     configDir,
     outputDir: resolve(fixtureRoot, fixture, 'storybook-static'),
-    ignorePreview: true,
     corePresets: [],
     overridePresets: [],
     packageJson: {},

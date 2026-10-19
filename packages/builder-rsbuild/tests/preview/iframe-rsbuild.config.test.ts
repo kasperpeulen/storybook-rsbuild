@@ -123,7 +123,6 @@ const createOptions = (
       apply:
         apply as unknown as Required<RsbuildBuilderOptions>['presets']['apply'],
     },
-    previewUrl: 'http://localhost:6006/iframe.html',
     typescriptOptions: {
       check: false,
       skipCompiler: true,
