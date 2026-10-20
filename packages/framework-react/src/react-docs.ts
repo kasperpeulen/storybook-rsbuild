@@ -7,7 +7,13 @@ export const rsbuildFinalDocs: NonNullable<
   StorybookConfig['rsbuildFinal']
 > = async (config, options): Promise<RsbuildConfig> => {
   const features = await options.presets.apply('features', {})
-  if (features?.experimentalDocgenServer) {
+  // TEMPORARY (diagnostics PR): `experimentalDocgenServer` is gone from
+  // Storybook 11's types; #594 migrates this call site. Cast keeps the runtime
+  // read identical without pulling that PR's commits into this branch.
+  if (
+    (features as { experimentalDocgenServer?: boolean })
+      ?.experimentalDocgenServer
+  ) {
     // The docgen service owns React metadata extraction for this mode. Do not inject
     // `Component.__docgenInfo` into the preview bundle, otherwise preview argTypes would include
     // docgen data that the UI is now responsible for merging from the service.
