@@ -44,6 +44,25 @@ const targetsNodeModules = (specifier: NormalizedStoriesSpecifier) =>
   NODE_MODULES_GLOB_TOKEN.test(toWebpackIncludeGlob(specifier))
 
 /**
+ * Core emits `webpackInclude` from a glob whose leading `./` it replaces with
+ * `/`, so the pattern only carries literal `/` separators. Rspack evaluates
+ * `webpackInclude` against the absolute resource path; webpack evaluates it
+ * against the relative request. On Windows the native `\` separators therefore
+ * never match, every story file is filtered out, and the preview ships an empty
+ * stories context — no per-story chunks, no story CSS, no docs images. Rebuild
+ * each separator as `[\\/]` so the glob keeps matching on both platforms.
+ */
+const withPlatformAgnosticSeparators = (regexpSource: string) =>
+  regexpSource.replaceAll('\\/', '[\\\\/]').replaceAll('[^/]', '[^\\\\/]')
+
+const rewriteWebpackInclude = (line: string) =>
+  line.replace(
+    /(\/\* webpackInclude: )\/(.+)\/( \*\/)/,
+    (_match, prefix: string, regexpSource: string, suffix: string) =>
+      `${prefix}/${withPlatformAgnosticSeparators(regexpSource)}/${suffix}`,
+  )
+
+/**
  * Re-assert Storybook core's intent to keep `node_modules` out of the stories
  * context. Core's `(?!.*node_modules)` guard relies on webpack's context
  * dropping `node_modules`; Rspack's `ContextModule` enumerates it, so a
@@ -67,13 +86,14 @@ export const excludeNodeModulesFromStoryContext = (
       if (!line.includes('webpackInclude:')) {
         return [line]
       }
+      const includeLine = rewriteWebpackInclude(line)
       const specifier = stories[specifierIndex++]
       if (specifier && targetsNodeModules(specifier)) {
-        return [line]
+        return [includeLine]
       }
       const indent = line.slice(0, line.length - line.trimStart().length)
       return [
-        line,
+        includeLine,
         `${indent}/* webpackExclude: /[\\\\/]node_modules[\\\\/]/ */`,
       ]
     })
@@ -137,20 +157,22 @@ export const getVirtualModules = async (
       })),
     ),
   )
+  const storiesModule = excludeNodeModulesFromStoryContext(
+    storiesImportFn,
+    stories,
+  )
+
   console.log(
     '[sb-win-diag] include    :',
     JSON.stringify(
-      storiesImportFn
+      storiesModule
         .split('\n')
         .filter((line) => line.includes('webpackInclude:'))
         .map((line) => line.trim()),
     ),
   )
 
-  virtualModules[storiesPath] = excludeNodeModulesFromStoryContext(
-    storiesImportFn,
-    stories,
-  )
+  virtualModules[storiesPath] = storiesModule
   // If the entrypoint is changed, remember to sync the change to Chromatic https://github.com/chromaui/chromatic-cli/pull/1206/files.
   // Also ref https://github.com/rstackjs/storybook-rsbuild/issues/332.
   const configEntryPath = resolve(join(workingDir, 'storybook-config-entry.js'))

@@ -118,3 +118,77 @@ describe('virtual-module-mapping: stories context excludes node_modules', () => 
     expect(mod).not.toContain(pathSegmentExclude)
   })
 })
+
+// Rspack evaluates `webpackInclude` against the absolute resource path, while
+// webpack evaluates it against the relative request. Core builds the pattern
+// from a glob, which leaves literal `/` separators; on Windows those never
+// match a native `\` path, so every story was filtered out of the context.
+const getStoriesIncludeMatcher = (mod: string) => {
+  const match = /\/\* webpackInclude: \/(.+)\/ \*\//.exec(mod)
+
+  if (!match) {
+    throw new Error(`webpackInclude missing from generated stories module`)
+  }
+
+  return new RegExp(match[1])
+}
+
+// The fixture configDir sits under the repo root, so core's include carries the
+// fixture's path relative to `process.cwd()`.
+const fixtureStoriesRelative = 'packages/builder-rsbuild/tests/fixtures/stories'
+
+describe('virtual-module-mapping: stories context matches native paths', () => {
+  it('matches story files under POSIX and Windows absolute paths', async () => {
+    const matcher = getStoriesIncludeMatcher(
+      await getStoriesModule(createOptions()),
+    )
+
+    expect(
+      matcher.test(`/repo/${fixtureStoriesRelative}/button.stories.tsx`),
+    ).toBe(true)
+    expect(
+      matcher.test(
+        String.raw`D:\a\repo\packages\builder-rsbuild\tests\fixtures\stories\button.stories.tsx`,
+      ),
+    ).toBe(true)
+  })
+
+  it('still skips files outside the stories glob', async () => {
+    const matcher = getStoriesIncludeMatcher(
+      await getStoriesModule(createOptions()),
+    )
+
+    expect(matcher.test(`/repo/${fixtureStoriesRelative}/button.tsx`)).toBe(
+      false,
+    )
+    expect(
+      matcher.test(
+        String.raw`D:\a\repo\packages\builder-rsbuild\tests\fixtures\stories\button.tsx`,
+      ),
+    ).toBe(false)
+  })
+
+  it('keeps suppressing dependency stories on both separator styles', async () => {
+    const matcher = getStoriesIncludeMatcher(
+      await getStoriesModule(
+        createOptions([{ directory: './', files: '**/*.stories.tsx' }]),
+      ),
+    )
+
+    expect(
+      matcher.test(
+        `/repo/packages/builder-rsbuild/tests/fixtures/node_modules/pkg/a.stories.tsx`,
+      ),
+    ).toBe(false)
+    expect(
+      matcher.test(
+        String.raw`D:\repo\packages\builder-rsbuild\tests\fixtures\node_modules\pkg\a.stories.tsx`,
+      ),
+    ).toBe(false)
+    expect(
+      matcher.test(
+        '/repo/packages/builder-rsbuild/tests/fixtures/src/a.stories.tsx',
+      ),
+    ).toBe(true)
+  })
+})
