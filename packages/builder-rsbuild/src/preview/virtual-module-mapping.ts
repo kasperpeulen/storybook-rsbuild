@@ -119,10 +119,36 @@ export const getVirtualModules = async (
 
   // TODO: Add the upstream builder-webpack5 semver gate for webpack issue #15541
   // once the Rspack version containing the equivalent fix is identified.
+  const storiesImportFn = toImportFn(stories, {
+    needPipelinedImport: isLazyCompilationActive,
+  })
+
+  // TEMPORARY diagnostics for the Windows-only "empty stories context" failure.
+  // Remove before merging anything.
+  console.log('[sb-win-diag] workingDir :', workingDir)
+  console.log('[sb-win-diag] configDir  :', options.configDir)
+  console.log(
+    '[sb-win-diag] specifiers :',
+    JSON.stringify(
+      stories.map(({ directory, files, importPathMatcher }) => ({
+        directory,
+        files,
+        importPathMatcher: importPathMatcher.source,
+      })),
+    ),
+  )
+  console.log(
+    '[sb-win-diag] include    :',
+    JSON.stringify(
+      storiesImportFn
+        .split('\n')
+        .filter((line) => line.includes('webpackInclude:'))
+        .map((line) => line.trim()),
+    ),
+  )
+
   virtualModules[storiesPath] = excludeNodeModulesFromStoryContext(
-    toImportFn(stories, {
-      needPipelinedImport: isLazyCompilationActive,
-    }),
+    storiesImportFn,
     stories,
   )
   // If the entrypoint is changed, remember to sync the change to Chromatic https://github.com/chromaui/chromatic-cli/pull/1206/files.

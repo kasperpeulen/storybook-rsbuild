@@ -28,7 +28,12 @@ export async function resolveDocgenContext(
 
   return {
     docgen,
-    docgenServerActive: features?.experimentalDocgenServer === true,
+    // TEMPORARY (diagnostics PR): Storybook 11 renamed this feature flag and the
+    // migration lives in #594. Keep the runtime value untouched so this branch
+    // builds without pulling that PR's commits in.
+    docgenServerActive:
+      (features as { experimentalDocgenServer?: boolean } | undefined)
+        ?.experimentalDocgenServer === true,
   }
 }
 

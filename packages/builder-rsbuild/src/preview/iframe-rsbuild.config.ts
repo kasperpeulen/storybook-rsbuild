@@ -101,7 +101,6 @@ const PRODUCTION_MINIFY_OPTIONS: NonNullable<
 }
 
 const globalPath = maybeGetAbsolutePath('@storybook/global')
-
 // these packages are not pre-bundled because of react dependencies.
 // these are not dependencies of the builder anymore, thus resolving them can fail.
 // we should remove the aliases in 8.0, I'm not sure why they are here in the first place.
@@ -112,6 +111,48 @@ const storybookPaths: Record<string, string> = {
 export type RsbuildBuilderOptions = Options & {
   typescriptOptions: TypescriptOptions
 }
+
+/**
+ * TEMPORARY diagnostics for the Windows-only "empty stories context" failure.
+ * Prints the module identifiers Rspack actually produced, so we can tell whether
+ * the story files are being filtered by `webpackInclude` or never resolved.
+ * Remove before merging anything.
+ */
+const createStoryContextDiagnostics = (): Rspack.RspackPluginInstance => ({
+  apply(compiler) {
+    compiler.hooks.done.tap('sb-win-diag', (stats) => {
+      const identifiers = [...stats.compilation.modules].map((module) =>
+        module.identifier(),
+      )
+      const storyIdentifiers = identifiers.filter((id) =>
+        /[\\/]stories[\\/]/.test(id),
+      )
+      const contextIdentifiers = identifiers.filter((id) =>
+        /\|(lazy|eager|async-weak|weak)\|/.test(id),
+      )
+
+      console.log('[sb-win-diag] cwd        :', process.cwd())
+      console.log('[sb-win-diag] moduleCount:', identifiers.length)
+      console.log(
+        '[sb-win-diag] storyModules:',
+        storyIdentifiers.length,
+        JSON.stringify(storyIdentifiers.slice(0, 5)),
+      )
+      console.log(
+        '[sb-win-diag] contextModules:',
+        JSON.stringify(contextIdentifiers.slice(0, 5)),
+      )
+      console.log(
+        '[sb-win-diag] entryModules:',
+        JSON.stringify(
+          identifiers.filter((id) =>
+            /storybook-(stories|config-entry)/.test(id),
+          ),
+        ),
+      )
+    })
+  },
+})
 
 const resolveLazyCompilation = async (
   options: RsbuildBuilderOptions,
@@ -510,6 +551,7 @@ export default async (
               process: require.resolve('process/browser.js'),
             }),
             new CaseSensitivePathsPlugin(),
+            createStoryContextDiagnostics(),
           ].filter(Boolean),
         )
 
