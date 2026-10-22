@@ -32,6 +32,10 @@ const config: StorybookConfig = {
     name: getAbsolutePath('storybook-react-rsbuild'),
     options: {},
   },
+  // Keeps the deprecated builder docgen path (removed in Storybook 12) covered by e2e.
+  features: {
+    docgenServer: false,
+  },
   typescript: {
     reactDocgen: 'react-docgen-typescript',
     reactDocgenTypescriptOptions: {
